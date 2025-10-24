@@ -33,13 +33,9 @@ class SiameseNet(nn.Module):
         )
 
     def _pair_features(self, f1, f2):
-        if self.distance == "l1":
-            d = torch.abs(f1 - f2)
-        elif self.distance == "cos":
-            d = 1 - F.cosine_similarity(f1, f2).unsqueeze(1)
-        else:  # "l2"
-            d = torch.sqrt(torch.sum((f1 - f2) ** 2, dim=1, keepdim=True) + 1e-8)
-        return d
+    # 返回“逐维差”的向量而不是单个标量距离
+    # 这样输出形状是 (B, feat_dim)，可直接接 Linear(feat_dim, 64)
+        return torch.abs(f1 - f2)
 
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
         f1 = self.backbone(x1)

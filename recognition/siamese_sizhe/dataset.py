@@ -1,44 +1,58 @@
-# 读取 ISIC 2020 的一个子集：train/ 下若干 jpg + train.csv
-# 输出 (img1, img2, label)；label=1 表“同类”（正对/负对由你的定义确定）
-import os, random, csv
+# dataset.py
+# 读取 data/train.csv 与 data/train/*.jpg，生成成对样本 (img1, img2, label)
+# 仅接受二分类标签 0/1（来自 target/label/malignant）；非 0/1 的行会被跳过
+import os, csv, random
 from typing import List, Tuple
 from PIL import Image
+
 import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as T
 
+
 class PairDataset(Dataset):
-    def __init__(self, root: str, csv_name="train.csv", img_dir="train", image_size=224, mode="train", pair_ratio=1.0, seed=42):
+    def __init__(self, root: str, csv_name: str = "train.csv", img_dir: str = "train",
+                 image_size: int = 224, mode: str = "train", seed: int = 42):
         self.root = root
         self.img_dir = os.path.join(root, img_dir)
         self.csv_path = os.path.join(root, csv_name)
         self.mode = mode
         self.rng = random.Random(seed)
 
-        # 读取 csv：id,label（0/1）
-        self.items = []  # (path, label)
-        with open(self.csv_path, newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
+        # 读取 csv：image_name, target/label/malignant（仅 0/1）
+        self.items: List[Tuple[str, int]] = []  # (path, y)
+        with open(self.csv_path, newline="") as f:
+            rd = csv.DictReader(f)
+            for row in rd:
                 image_id = row.get("image_name") or row.get("image_id") or row.get("image") or row.get("isic_id")
-                label = int(row.get("target") or row.get("label") or row.get("malignant", 0))
-                img_path = os.path.join(self.img_dir, f"{image_id}.jpg")
-                if os.path.exists(img_path):
-                    self.items.append((img_path, label))
+                if not image_id:
+                    continue
+                raw = row.get("target") or row.get("label") or row.get("malignant")
+                try:
+                    y = int(raw)
+                except Exception:
+                    # 对非常规取值直接跳过
+                    continue
+                if y not in (0, 1):
+                    # 只保留二分类样本
+                    continue
+                p = os.path.join(self.img_dir, f"{image_id}.jpg")
+                if os.path.exists(p):
+                    self.items.append((p, y))
 
-        # 分桶便于采样正/负对
+        # 分桶（正负样本池）
         self.pos_pool = [p for p in self.items if p[1] == 1]
         self.neg_pool = [p for p in self.items if p[1] == 0]
-        assert len(self.pos_pool) > 0 and len(self.neg_pool) > 0, "需要正负样本"
+        assert len(self.pos_pool) > 0 and len(self.neg_pool) > 0, "需要包含正负样本（检查 CSV 与图片是否匹配）"
 
-        # 预处理
+        # 预处理（与之前能到 0.82~0.83 的设置一致）
         self.tf = T.Compose([
             T.Resize((image_size, image_size)),
             T.ToTensor(),
-            T.Normalize(mean=[0.5]*3, std=[0.5]*3),
+            T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
         ])
 
-        self.length = int(len(self.items) * pair_ratio)
+        self.length = len(self.items)  # 每个 epoch 采样与图片数同量级的配对
 
     def __len__(self):
         return self.length

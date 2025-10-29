@@ -50,7 +50,8 @@ Mixed precision (--amp) for faster GPU training
 
 Best model checkpoint automatically saved when validation AUC improves
 
-5. Results
+
+## **5. Results**
 After 30 epochs of training, the model achieved the following performance on the validation set:
 
 Metric	Value
@@ -114,3 +115,4 @@ Tune learning rate schedules for smoother convergence
 Generative AI tools (ChatGPT, OpenAI GPT-5, 2025) were used only for translation, code debugging, and improving documentation clarity.
 All model implementation, design decisions, and experimental results were independently developed and verified by the author.
 No AI-generated content was submitted without full understanding or validation.
+
